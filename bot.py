@@ -14,7 +14,7 @@ from flask import Flask
 from threading import Thread
 
 # =========================
-# KEEP ALIVE WEB SERVER
+# KEEP ALIVE SERVER
 # =========================
 
 web_app = Flask(__name__)
@@ -31,49 +31,29 @@ def keep_alive():
     t.start()
 
 # =========================
-# TELEGRAM BOT TOKEN
+# TELEGRAM BOT
 # =========================
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-# =========================
-# INSTAGRAM LOGIN SESSION
-# =========================
-
 L = instaloader.Instaloader()
 
-# YOUR INSTAGRAM USERNAME
-USERNAME = "your_instagram_username"
-
-# LOAD SESSION FILE
-L.load_session_from_file(USERNAME)
-
-# =========================
 # START COMMAND
-# =========================
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     await update.message.reply_text(
         "👋 Welcome!\n\n"
         "📥 Instagram Reel link bhejo.\n"
         "🤖 Main reel + caption download karke bhej dunga."
     )
 
-# =========================
-# DOWNLOAD REEL
-# =========================
-
+# REEL DOWNLOAD
 async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     url = update.message.text
 
     try:
-
-        # SHORTCODE
         shortcode = url.split("/")[-2]
 
-        # GET POST
         post = instaloader.Post.from_shortcode(
             L.context,
             shortcode
@@ -103,18 +83,17 @@ async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 break
 
     except Exception as e:
-
         await update.message.reply_text(
             f"❌ Error: {e}"
         )
 
 # =========================
-# TELEGRAM APP
+# APP
 # =========================
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-# START COMMAND
+# COMMANDS
 app.add_handler(
     CommandHandler("start", start)
 )
@@ -124,16 +103,10 @@ app.add_handler(
     MessageHandler(filters.TEXT, download_reel)
 )
 
-# =========================
 # KEEP ALIVE
-# =========================
-
 keep_alive()
 
 print("✅ Bot Running...")
 
-# =========================
 # RUN BOT
-# =========================
-
 app.run_polling()
