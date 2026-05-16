@@ -1,0 +1,10 @@
+import instaloader
+
+L = instaloader.Instaloader()
+
+USERNAME = "your_instagram_username"
+PASSWORD = "your_instagram_password"
+
+L.login(USERNAME, PASSWORD)
+
+L.save_session_to_file()
