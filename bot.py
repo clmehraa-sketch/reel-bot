@@ -1,112 +1,62 @@
-from telegram import Update
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
-
-import instaloader
 import os
+import yt_dlp
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from flask import Flask
-from threading import Thread
+# Render के Environment Variables से आपका टोकन लेगा
+TOKEN = os.environ.get("BOT_TOKEN")
 
-# =========================
-# KEEP ALIVE SERVER
-# =========================
-
-web_app = Flask(__name__)
-
-@web_app.route('/')
-def home():
-    return "Bot is running!"
-
-def run():
-    web_app.run(host="0.0.0.0", port=10000)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
-
-# =========================
-# TELEGRAM BOT
-# =========================
-
-TOKEN = os.getenv("BOT_TOKEN")
-
-L = instaloader.Instaloader()
-
-# START COMMAND
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Welcome!\n\n"
-        "📥 Instagram Reel link bhejo.\n"
-        "🤖 Main reel + caption download karke bhej dunga."
-    )
+    await update.message.reply_text("नमस्ते! मुझे किसी भी Instagram Reel का लिंक भेजें और मैं उसे डाउनलोड करके दूंगा।")
 
-# REEL DOWNLOAD
 async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
     url = update.message.text
+    
+    # चेक करें कि लिंक इंस्टाग्राम का ही है या नहीं
+    if "instagram.com" not in url:
+        await update.message.reply_text("❌ कृपया सही Instagram लिंक भेजें।")
+        return
+
+    status_message = await update.message.reply_text("⏳ डाउनलोड हो रहा है, कृपया प्रतीक्षा करें...")
+
+    # yt-dlp की सेटिंग्स
+    ydl_opts = {
+        'format': 'best',
+        'outtmpl': 'reel.mp4',
+        'quiet': True,
+        'no_warnings': True,
+    }
 
     try:
-        shortcode = url.split("/")[-2]
-
-        post = instaloader.Post.from_shortcode(
-            L.context,
-            shortcode
-        )
-
-        # CAPTION
-        caption = post.caption if post.caption else "No caption found."
-
-        # DOWNLOAD
-        L.download_post(post, target="downloads")
-
-        # SEND VIDEO
-        for file in os.listdir("downloads"):
-
-            if file.endswith(".mp4"):
-
-                video_path = f"downloads/{file}"
-
-                await update.message.reply_video(
-                    video=open(video_path, "rb"),
-                    caption=caption[:1000]
-                )
-
-                # DELETE FILE AFTER SEND
-                os.remove(video_path)
-
-                break
-
+        # वीडियो डाउनलोड करें
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        
+        # टेलीग्राम पर वीडियो भेजें
+        with open('reel.mp4', 'rb') as video:
+            await update.message.reply_video(video=video)
+        
+        # सर्वर से वीडियो फाइल डिलीट करें ताकि स्टोरेज फुल न हो
+        os.remove('reel.mp4')
+        await status_message.delete()
+        
     except Exception as e:
-        await update.message.reply_text(
-            f"❌ Error: {e}"
-        )
+        await status_message.edit_text("❌ माफ़ करें, इंस्टाग्राम ने इस वीडियो को ब्लॉक कर दिया है या लिंक प्राइवेट है।")
+        print(f"Error: {e}")
 
-# =========================
-# APP
-# =========================
+def main():
+    if not TOKEN:
+        print("Error: BOT_TOKEN environment variable is not set!")
+        return
+        
+    app = Application.builder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_reel))
+    
+    # drop_pending_updates=True से पुरानी रुकी हुई रिक्वेस्ट क्रैश नहीं करेंगी
+    app.run_polling(drop_pending_updates=True)
 
-app = ApplicationBuilder().token(TOKEN).build()
-
-# COMMANDS
-app.add_handler(
-    CommandHandler("start", start)
-)
-
-# MESSAGE HANDLER
-app.add_handler(
-    MessageHandler(filters.TEXT, download_reel)
-)
-
-# KEEP ALIVE
-keep_alive()
-
-print("✅ Bot Running...")
-
-# RUN BOT
-app.run_polling()
+if __name__ == '__main__':
+    main()
+    
