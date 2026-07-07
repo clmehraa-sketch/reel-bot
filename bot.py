@@ -17,7 +17,7 @@ async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ कृपया सही Instagram लिंक भेजें।")
         return
 
-    status_message = await update.message.reply_text("⏳ डाउनलोड हो रहा है, कृपया प्रतीक्षा करें...")
+    status_message = await update.message.reply_text("⏳ वीडियो और कैप्शन निकाला जा रहा है, कृपया प्रतीक्षा करें...")
 
     # yt-dlp की सेटिंग्स
     ydl_opts = {
@@ -28,13 +28,20 @@ async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     try:
-        # वीडियो डाउनलोड करें
+        # वीडियो डाउनलोड करें और जानकारी (metadata) निकालें
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
+            info_dict = ydl.extract_info(url, download=True)
+            
+            # इंस्टाग्राम पोस्ट का कैप्शन/डिस्क्रिप्शन निकालें
+            caption = info_dict.get('description', '') or info_dict.get('title', '')
+            
+            # टेलीग्राम में कैप्शन की लिमिट 1024 कैरेक्टर होती है, उसे सेट करें
+            if len(caption) > 1024:
+                caption = caption[:1020] + "..."
         
-        # टेलीग्राम पर वीडियो भेजें
+        # टेलीग्राम पर वीडियो और कैप्शन एक साथ भेजें
         with open('reel.mp4', 'rb') as video:
-            await update.message.reply_video(video=video)
+            await update.message.reply_video(video=video, caption=caption)
         
         # सर्वर से वीडियो फाइल डिलीट करें ताकि स्टोरेज फुल न हो
         os.remove('reel.mp4')
@@ -54,7 +61,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_reel))
     
-    # drop_pending_updates=True से पुरानी रुकी हुई रिक्वेस्ट क्रैश नहीं करेंगी
+    # पुरानी रुकी हुई रिक्वेस्ट क्रैश नहीं करेंगी
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
