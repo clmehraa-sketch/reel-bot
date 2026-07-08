@@ -1,7 +1,22 @@
 import os
 import yt_dlp
+import threading
+from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+
+# --- वेब सर्वर सेटअप (Cronjob के पिंग के लिए) ---
+app_web = Flask(__name__)
+
+@app_web.route('/')
+def home():
+    return "Bot is alive and running!"
+
+def run_web():
+    # Render अपने आप PORT देता है
+    port = int(os.environ.get("PORT", 8080))
+    app_web.run(host="0.0.0.0", port=port)
+# ------------------------------------------------
 
 # Render के Environment Variables से आपका टोकन लेगा
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -28,22 +43,20 @@ async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     try:
-        # वीडियो डाउनलोड करें और जानकारी (metadata) निकालें
+        # वीडियो डाउनलोड करें और जानकारी निकालें
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             
-            # इंस्टाग्राम पोस्ट का कैप्शन/डिस्क्रिप्शन निकालें
             caption = info_dict.get('description', '') or info_dict.get('title', '')
             
-            # टेलीग्राम में कैप्शन की लिमिट 1024 कैरेक्टर होती है, उसे सेट करें
             if len(caption) > 1024:
                 caption = caption[:1020] + "..."
         
-        # टेलीग्राम पर वीडियो और कैप्शन एक साथ भेजें
+        # टेलीग्राम पर वीडियो भेजें
         with open('reel.mp4', 'rb') as video:
             await update.message.reply_video(video=video, caption=caption)
         
-        # सर्वर से वीडियो फाइल डिलीट करें ताकि स्टोरेज फुल न हो
+        # सर्वर से फाइल डिलीट करें
         os.remove('reel.mp4')
         await status_message.delete()
         
@@ -56,6 +69,9 @@ def main():
         print("Error: BOT_TOKEN environment variable is not set!")
         return
         
+    # बॉट शुरू होने से पहले डमी वेबसाइट को बैकग्राउंड में चालू करें
+    threading.Thread(target=run_web, daemon=True).start()
+    
     app = Application.builder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("start", start))
