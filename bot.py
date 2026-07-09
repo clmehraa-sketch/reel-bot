@@ -13,12 +13,10 @@ def home():
     return "Bot is alive and running!"
 
 def run_web():
-    # Render अपने आप PORT देता है
     port = int(os.environ.get("PORT", 8080))
     app_web.run(host="0.0.0.0", port=port)
 # ------------------------------------------------
 
-# Render के Environment Variables से आपका टोकन लेगा
 TOKEN = os.environ.get("BOT_TOKEN")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -27,23 +25,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text
     
-    # चेक करें कि लिंक इंस्टाग्राम का ही है या नहीं
     if "instagram.com" not in url:
         await update.message.reply_text("❌ कृपया सही Instagram लिंक भेजें।")
         return
 
-    status_message = await update.message.reply_text("⏳ वीडियो और कैप्शन निकाला जा रहा है, कृपया प्रतीक्षा करें...")
+    status_message = await update.message.reply_text("⏳ वीडियो डाउनलोड हो रहा है, कृपया प्रतीक्षा करें...")
 
-    # yt-dlp की सेटिंग्स
+    # --- यहाँ हमने आवाज़ के लिए नया फॉर्मेट सेट किया है ---
     ydl_opts = {
-        'format': 'best',
+        'format': 'best[ext=mp4][vcodec!=none][acodec!=none]/best',
         'outtmpl': 'reel.mp4',
         'quiet': True,
         'no_warnings': True,
     }
 
     try:
-        # वीडियो डाउनलोड करें और जानकारी निकालें
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             
@@ -52,11 +48,9 @@ async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if len(caption) > 1024:
                 caption = caption[:1020] + "..."
         
-        # टेलीग्राम पर वीडियो भेजें
         with open('reel.mp4', 'rb') as video:
             await update.message.reply_video(video=video, caption=caption)
         
-        # सर्वर से फाइल डिलीट करें
         os.remove('reel.mp4')
         await status_message.delete()
         
@@ -69,7 +63,6 @@ def main():
         print("Error: BOT_TOKEN environment variable is not set!")
         return
         
-    # बॉट शुरू होने से पहले डमी वेबसाइट को बैकग्राउंड में चालू करें
     threading.Thread(target=run_web, daemon=True).start()
     
     app = Application.builder().token(TOKEN).build()
@@ -77,7 +70,6 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, download_reel))
     
-    # पुरानी रुकी हुई रिक्वेस्ट क्रैश नहीं करेंगी
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == '__main__':
