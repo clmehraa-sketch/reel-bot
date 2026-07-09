@@ -1,6 +1,7 @@
 import os
 import yt_dlp
 import threading
+import imageio_ffmpeg
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -29,11 +30,15 @@ async def download_reel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ कृपया सही Instagram लिंक भेजें।")
         return
 
-    status_message = await update.message.reply_text("⏳ वीडियो डाउनलोड हो रहा है, कृपया प्रतीक्षा करें...")
+    status_message = await update.message.reply_text("⏳ वीडियो और आवाज़ जोड़ी जा रही है, कृपया प्रतीक्षा करें...")
 
-    # --- यहाँ हमने आवाज़ के लिए नया फॉर्मेट सेट किया है ---
+    # सर्वर पर ffmpeg (वीडियो और ऑडियो जोड़ने वाले टूल) को ढूंढें
+    ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
+
+    # yt-dlp की सेटिंग (यह अपने आप सबसे अच्छी क्वालिटी का वीडियो और ऑडियो निकाल कर मिला देगा)
     ydl_opts = {
-        'format': 'best[ext=mp4][vcodec!=none][acodec!=none]/best',
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'ffmpeg_location': ffmpeg_path,
         'outtmpl': 'reel.mp4',
         'quiet': True,
         'no_warnings': True,
@@ -74,4 +79,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
+            
